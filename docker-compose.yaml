@@ -1,0 +1,68 @@
+services:
+  pg:
+    image: postgres:16.4-bookworm
+    container_name: pg
+    hostname: pg
+    volumes:
+      - pg_data_volume:/var/lib/postgresql/data
+      - ./db/pg/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: admin
+      POSTGRES_USER: admin
+      POSTGRES_DB: sample
+      POSTGRES_INITDB_ARGS: "--no-locale"
+    healthcheck:
+      test: "pg_isready -U admin || exit 1"
+      timeout: 20s
+      retries: 7
+
+  maria:
+    image: mariadb:11.5.2-noble
+    container_name: maria
+    hostname: maria
+    volumes:
+      - maria_data_volume:/var/lib/mysql
+      - ./db/maria:/docker-entrypoint-initdb.d
+      # - ./conf.d:/etc/mysql/conf.d
+    ports:
+      - 3306:3306
+    environment:
+      MARIADB_USER: admin
+      MARIADB_PASSWORD: admin
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: sample
+      TZ: Asia/Tokyo
+    restart: always
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  go:
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+      target: dev
+    container_name: go
+    hostname: go
+    ports:
+      - 9999:8080
+    volumes:
+      - ./src:/src
+    environment:
+      DB_PASSWORD: admin
+      DB_USER: admin
+      DB_NAME: sample
+    depends_on:
+      - pg
+      - maria
+    
+volumes:
+  pg_data_volume:
+    name: pg_data_volume
+  maria_data_volume:
+    name: maria_data_volume
